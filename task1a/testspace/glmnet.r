@@ -42,7 +42,7 @@ plot(x_test[,feature_no], y_test)
 for (i in c(1:nlambdas)) {
   points(x_test[,feature_no], pred[,i], col=cols[i])
 }
-legend(2,17, lambdas, col=cols[1:nlambdas], pch=21)
+legend(-2,60, lambdas, col=cols[1:nlambdas], pch=21)
 
 # Compute MSE
 mse = c()
@@ -53,6 +53,6 @@ for (i in c(1:nlambdas)) {
 # Estimate MSE through cross validation
 cvfit = cv.glmnet(x_train, y_train, lambda=lambdas, type.measure="mse", nfolds=10)
 plot(cvfit)
-lines(lambdas, mse, col="red")
+lines(log(lambdas), mse, col="red")
 cvfit$cvm
 mse
