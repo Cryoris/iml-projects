@@ -24,7 +24,12 @@ data.test = data.test.full
 
 rem.params = c(-(13+1),-(4+1),-(5+1),-(6+1),-(8+1),-(9+1),-(10+1),-(12+1),-(15+1),-(16+1))
 rem.params = c(-(13+1),-(9+1),-(10+1),-(12+1),-(15+1),-(16+1))
-rem.params = c(-(1+1),-(12+1),-(13+1))#,-(15+1))
+rem.params = c(-(1+1),-(12+1),-(13+1),-(15+1)) 
+#MultiPredrfsrc_VIFremoveNew2
+rem.params = c(-(1+1),-(12+1),-(13+1),-(15+1)) 
+#MultiPredrfsrc_VIFremoveNew
+rem.params = c(-(1+1),-(8+1), -(9+1), -(12+1),-(13+1),-(16+1)) 
+    #MultiPredrfsrc_VIFremoveNew3
 
 # "+1" for y column
 
@@ -104,6 +109,8 @@ vif(glm(x12~x1+x2+x3+x4+x5+x6+x7+x8+x9+x10+x11+x12+x14+x15+x16,data=data))
 #remove GVIF >10: x4,5,6,8,9,10,12,15,16
 rem.columns = c(-(13+1),-(4+1),-(5+1),-(6+1),-(8+1),-(9+1),-(10+1),-(12+1),-(15+1),-(16+1))
 # "+1" for y column
+
+vif(glm(y~x2+x3+x4+x5+x6+x7+x10+x11+x14+x15,data=data))
 
 data <- full.data[,rem.columns]
 vif(glm(x14~x1+x2+x3+x7+x11+x14,data=data))
