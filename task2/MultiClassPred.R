@@ -13,15 +13,23 @@ library(car)
 #needed for "vif", but should not override "makeLearner" from mlr, so lower priority
 
 
-data.train <- read.csv("train.csv", header=T)[,-1] # Drop Id column
-data.test <- read.csv("test.csv", header=T)[,-1] # Drop Id column
+data.train.full <- read.csv("train.csv", header=T)[,-1] # Drop Id column
+data.test.full <- read.csv("test.csv", header=T)[,-1] # Drop Id column
+
+data.train = data.train.full
+data.test = data.test.full
+
 
 ##utilize Part 2 (remove parameters aproach)
 
 rem.params = c(-(13+1),-(4+1),-(5+1),-(6+1),-(8+1),-(9+1),-(10+1),-(12+1),-(15+1),-(16+1))
+rem.params = c(-(13+1),-(9+1),-(10+1),-(12+1),-(15+1),-(16+1))
+rem.params = c(-(1+1),-(12+1),-(13+1))#,-(15+1))
 
-data.train <- data.train[, rem.params]
-data.test <- data.test[, rem.params] 
+# "+1" for y column
+
+data.train <- data.train.full[, rem.params]
+data.test <- data.test.full[, rem.params+1] # no y-column -> "+1" not needed 
 
 # from here on, the new approach follows the old one..
 
@@ -62,10 +70,11 @@ pred = predict(model, newdata = data.test)
 
 pred.y = 1*as.numeric(as.matrix((as.data.frame(pred)["response.y1"]))) + 2*as.numeric(as.matrix((as.data.frame(pred)["response.y2"])))
 
+sum(abs(myY-pred.y))
 
 our.rownames = as.character(1999+c(1:length(pred.y)))
 our.columnnames = c("Id","y")
-write.table(cbind(our.rownames, pred.y), "MultiPredrfsrc_VIFremove.csv", sep=",", row.names=F, col.names=our.columnnames)
+write.table(cbind(our.rownames, pred.y), "MultiPredrfsrc_VIFremoveNew2.csv", sep=",", row.names=F, col.names=our.columnnames)
 
 ###
 #Part 2 : remove correlations
@@ -83,17 +92,19 @@ write.table(cbind(our.rownames, pred.y), "MultiPredrfsrc_VIFremove.csv", sep=","
 
 ####################
 #new approach: vif
-library(car,pos=2)
 
 full.data <- read.csv("train.csv", header=T)[,-1] # Drop Id column
 cor(full.data) 
 # realise 100% correlation between x13&x12 -> aliased variable
-data <- full.data[,c(-2,-(13+1))]  # "+1" for y column
+data <- full.data[,c(-(13+1))]  # "+1" for y column
 
-
-vif(glm(x1~x1+x2+x3+x4+x5+x6+x7+x8+x9+x10+x11+x12+x14+x15+x16,data=data))
+# 1,12,13,15
+vif(glm(x5~x2+x3+x4+x5+x6+x7+x8+x9+x10+x11+x14+x16,data=data))
+vif(glm(x12~x1+x2+x3+x4+x5+x6+x7+x8+x9+x10+x11+x12+x14+x15+x16,data=data))
 #remove GVIF >10: x4,5,6,8,9,10,12,15,16
 rem.columns = c(-(13+1),-(4+1),-(5+1),-(6+1),-(8+1),-(9+1),-(10+1),-(12+1),-(15+1),-(16+1))
+# "+1" for y column
+
 data <- full.data[,rem.columns]
 vif(glm(x14~x1+x2+x3+x7+x11+x14,data=data))
 
