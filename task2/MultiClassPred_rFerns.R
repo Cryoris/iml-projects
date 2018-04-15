@@ -6,7 +6,8 @@ setwd("C:/Users/jonas/OneDrive/ETH/Machine Learning/iml-projects/task2")
 
 library(mlr) # package: Machine Learning R 
 #library(randomForestSRC)
-library(rFerns)
+#library(rFerns)
+library(glmnet)
 
 data.train <- read.csv("train.csv", header=T)[,-1] # Drop Id column
 data.test <- read.csv("test.csv", header=T)[,-1] # Drop Id column
@@ -30,10 +31,12 @@ MultiClass.task = makeMultilabelTask(id = "multi", data = data.input, target = l
 #lrn.rfsrc = makeLearner("multilabel.randomForestSRC")
 lrn.rFerns = makeLearner("multilabel.rFerns")
 
+lrn = makeLearner("classif.rpart", predict.type="prob")
+
 ## Train model
 
-model = train(lrn.rFerns, MultiClass.task) #, subset = 1:100)
-
+#model = train(lrn.rFerns, MultiClass.task) #, subset = 1:100)
+model <- glmnet(data.input, y, family="multinomial", alpha=1)
 
 ## Predict
 
@@ -49,4 +52,4 @@ y = 1*as.numeric(as.matrix((as.data.frame(pred)["response.y1"]))) + 2*as.numeric
 
 our.rownames = as.character(1999+c(1:length(y)))
 our.columnnames = c("Id","y")
-write.table(cbind(our.rownames, y), "rFernsMultiPred.csv", sep=",", row.names=F, col.names=our.columnnames)
+write.table(cbind(our.rownames, y), "glmnetMultiClassPred.csv", sep=",", row.names=F, col.names=our.columnnames)
