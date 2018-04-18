@@ -1,4 +1,4 @@
-setwd("~/uni/semester_8/iml/task2")
+#setwd("~/uni/semester_8/iml/task2")
 
 # IDEAL
 # for svm poly -> deg=2, cost=exp(-0.5)
@@ -13,7 +13,7 @@ library(caret)
 # - "final" computation
 # - cross-validation for "params"
 # - cross-validation for "features" (which features to remove)
-action <- "final"
+action <- "features"#"final"
 
 # PART 0 / Read in
 data.train <- read.csv("train.csv", header=T)[,-1] # Drop Id column
@@ -26,7 +26,7 @@ sum(data.train[,1] == 2)
 
 # PART I / Final computation with given parameters
 if (action == "final") {
-  rem.feat <- c(2,3,7,11,12,13,15)                   # Bad features
+  rem.feat <- c(2,3,7,11,13,15)  #c(2,3,7,11,12,13,15)                   # Bad features
   data.train <- data.train[,-(1+rem.feat)]           # Remove from train set
   data.test <- data.test[,-rem.feat]                 # Remove from test set
   summary(data.train)
@@ -44,7 +44,8 @@ if (action == "final") {
 
   our.rownames = as.character(1999+c(1:length(y)))   # Set correct output format
   our.columnnames = c("Id","y")
-  write.table(cbind(our.rownames, y), "SVMPred.csv", sep=",", row.names=F, col.names=our.columnnames)
+  #write.table(cbind(our.rownames, y), "SVMPred.csv", sep=",", row.names=F, col.names=our.columnnames)
+  write.table(cbind(our.rownames, y), "JonasSVMPred2.csv", sep=",", row.names=F, col.names=our.columnnames)
 }
 
 # FUNCTION / Perform one cross-validation for (a single set of) given parameters
@@ -115,7 +116,7 @@ if (action == "features") {
   cv <- function(x, y, n, feat.nr) {
 
     idx <- sample(1:length(y), size=n)        # Random sample of 1:n
-    print(idx)
+    #print(idx)
 
     train.x <- x[-idx,feat.nr]
     train.y <- y[-idx]
@@ -155,18 +156,23 @@ if (action == "features") {
   }
 
 
-  feat.sel(scale(x),y)
+  # feat.sel(scale(x),y) # removed since x,y were never defined (Jonas)
+        # change in the following: x --> train.x , y --> train.y
+  train.x <- data.train[,-1]
+  train.y <- data.train[,1]
+  feat.sel(scale(train.x),train.y)
 
   err = c()
   for (i in c(1:16)) {
     control <- trainControl(method="repeatedcv", number=10, repeats=20)
-    model <- train(data.frame(x[,i], "x"), y, method="cforest", preProcess="scale", trControl=control)
+    model <- train(data.frame(train.x[,i], "x"), train.y, method="cforest", preProcess="scale", trControl=control)
     summary(model)
-    pred <- predict(model, y)
-    err <- c(err, sum(abs(y - pred)))
+    pred <- predict(model, train.y)
+    err <- c(err, sum(abs(train.y - pred)))
   }
   plot(err)
   abline(v=10)
   abline(v=8)
   abline(v=6)
 }
+
