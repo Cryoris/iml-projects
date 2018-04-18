@@ -19,6 +19,11 @@ action <- "final"
 data.train <- read.csv("train.csv", header=T)[,-1] # Drop Id column
 data.test <- read.csv("test.csv", header=T)[,-1]   # Drop Id column
 
+summary(data.train)
+sum(data.train[,1] == 0)                            # How often does 0 appear?
+sum(data.train[,1] == 1)
+sum(data.train[,1] == 2)
+
 # PART I / Final computation with given parameters
 if (action == "final") {
   rem.feat <- c(2,3,7,11,12,13,15)                   # Bad features
@@ -62,7 +67,7 @@ cvsvm.single <- function(data, p.1, p.2, n.lo=100, normalise=T) {
   summary(train.data)
   summary(test.data)
 
-  fit <- svm(train.y~., train.data, kernel='radial', cost=p.1, gamma=p.2, type="C-classification")
+  fit <- svm(train.y~., train.data, kernel='radial', epsilon=p.1, gamma=p.2, type="C-classification")
   pred <- predict(fit, test.data[,-1])
 
   confusion <- table(pred, test.y)                    # How many correctly classified?
@@ -77,12 +82,14 @@ cvsvm <- function(data, n.folds, p.1, p.2, n.lo=100, normalise=T) {
 
 # PART 2 / Cross-validation for parameter-finding
 if (action == "params") {
-  p.cost <- exp(seq(-1,4,by=2))
-  p.deg <- c(1,2)
-  p.gamma <- 10^seq(-2, 2, by=2)
+  p.cost <- exp(seq(-1,4,by=0.5))
+  p.deg <- c(1:5)
+  p.gamma <- 10^seq(-2, 2, by=0.5)
+  p.gamma.dummy <- 0.1
+  p.eps <- 10^seq(-2,0,by=0.5)
   
-  p.1 <- p.cost
-  p.2 <- p.gamma
+  p.1 <- p.eps
+  p.2 <- p.gamma.dummy
   n.folds <- 10
 
   accs <- matrix(NA ,nrow=length(p.1), ncol=length(p.2))
@@ -96,6 +103,9 @@ if (action == "params") {
   for (i in 2:nrow(accs)) {
     points(p.1, accs[i,], pch=i)
   }
+  print(p.1)
+  print(p.2)
+  print(accs)
 }
 
 # PART 3 / Cross-validation to compute goodness of features
