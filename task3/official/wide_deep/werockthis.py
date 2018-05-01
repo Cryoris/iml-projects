@@ -110,7 +110,7 @@ def build_estimator(model_dir, model_type, hidden_units):
         n_classes=5)
 
 
-def input_fn(data_file, num_epochs, shuffle, batch_size):
+def input_fn(data_file, num_epochs, shuffle, batch_size, has_labels=True):
   """Generate an input function for the Estimator."""
   assert tf.gfile.Exists(data_file), (
       '%s not found. Please make sure you have run data_download.py and '
@@ -122,8 +122,11 @@ def input_fn(data_file, num_epochs, shuffle, batch_size):
     print(_CSV_COLUMNS)
     print(len(columns))
     features = dict(zip(_CSV_COLUMNS, columns))
-    labels = features.pop('y')
-    return features, labels
+    if has_labels:
+        labels = features.pop('y')
+        return features, labels
+    else:
+        return features
 
   # Extract lines from input files using the Dataset API.
   dataset = tf.data.TextLineDataset(data_file)
@@ -138,6 +141,7 @@ def input_fn(data_file, num_epochs, shuffle, batch_size):
   dataset = dataset.repeat(num_epochs)
   dataset = dataset.batch(batch_size)
   return dataset
+
 
 
 def main(argv):
@@ -161,6 +165,7 @@ def main(argv):
 
   train_file = os.path.join(flags.data_dir, 'train_minus.csv')
   test_file = os.path.join(flags.data_dir, 'validate.csv')
+  predict_file = os.path.join(flags.data_dir, 'test.csv')
 
   # Train and evaluate the model every `flags.epochs_between_evals` epochs.
   def train_input_fn():
@@ -169,6 +174,9 @@ def main(argv):
 
   def eval_input_fn():
     return input_fn(test_file, 1, False, flags.batch_size)
+
+  def predict_input_fn():
+    return input_fn(predict_file, 1, False, flags.batch_size, has_labels=False)
 
   loss_prefix = LOSS_PREFIX.get(flags.model_type, '')
   train_hooks = hooks_helper.get_train_hooks(
@@ -192,6 +200,11 @@ def main(argv):
         flags.stop_threshold, results['accuracy']):
       break
 
+  prediction = list(model.predict(input_fn=predict_input_fn))
+  predicted_classes = [p["classes"] for p in prediction]
+  print(prediction)
+  print(predicted_classes)
+
 
 class WideDeepArgParser(argparse.ArgumentParser):
   """Argument parser for running the wide deep model."""
@@ -208,8 +221,8 @@ class WideDeepArgParser(argparse.ArgumentParser):
         help='List of ints with number of units per layer, default [100, 75, 50, 25]',
         metavar='<HU>')
     self.set_defaults(
-        data_dir='./data',
-        model_dir='/tmp/census_model',
+        data_dir='/tmp/data',
+        model_dir='/tmp/model',
         train_epochs=40,
         epochs_between_evals=2,
         batch_size=40)
