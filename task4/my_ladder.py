@@ -4,14 +4,17 @@ import math
 import os
 import csv
 from tqdm import tqdm
+import numpy
+import pandas
 
 #%%
 #layer_sizes = [784, 1000, 500, 250, 250, 250, 10]
 #layer_sizes = [128, 1024, 512, 256, 256, 10]
-# 63 %:layer_sizes = [128,100, 25, 25, 10], starter_learning_rate = 0.06, decay_after = 30
-# 69 %:layer_sizes = [128,64, 32, 32, 10], starter_learning_rate = 0.06, decay_after = 30
+# 63%: layer_sizes = [128,100, 25, 25, 10], starter_learning_rate = 0.06, decay_after = 30
+# 69%: layer_sizes = [128,64, 32, 32, 10], starter_learning_rate = 0.06, decay_after = 30
+# 24%: layer_sizes = [128, 1, 10]
 
-layer_sizes = [128, 2, 32, 64, 10]
+layer_sizes =[128, 1000, 500, 250, 250, 250, 10]
 
 L = len(layer_sizes) - 1  # number of layers
 
@@ -287,7 +290,8 @@ print("=== Predicting ===")
 #%%
 pred = sess.run(tf.argmax(y, 1),feed_dict={inputs: mnist.eval.images, training: False}) #feed_dict={inputs: mnist.test.images[:,0,:,0], training: False})
 #%%
-pred.tofile("pred.csv", sep="\n", format='%i')
-print("Initial Accuracy: ", pred, "%")
+idx = numpy.arange(len(pred)) + 30000
+pred_DF = pandas.DataFrame(data=pred, columns=['y'], index=idx)
+pred_DF.to_csv("pred"+str(layer_sizes)+".csv", index_label=["Id"])
 #%%
 sess.close()
