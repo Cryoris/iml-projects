@@ -24,6 +24,7 @@ import argparse
 import os
 import shutil
 import sys
+import csv
 
 import tensorflow as tf  # pylint: disable=g-bad-import-order
 import numpy as np
@@ -33,20 +34,23 @@ from official.utils.logs import hooks_helper
 from official.utils.misc import model_helpers
 
 # Global definitions
-_CSV_COLUMNS = ["y"] + ["x{}".format(i) for i in range(1,100+1)]
+_CSV_COLUMNS = ["y"] + ["x{}".format(i) for i in range(1,128+1)]
+#_LABELED_HEADER = str(_CSV_COLUMNS).strip("[]").replace(" ", "").replace("'", "")
+#_UNLABELED_HEADER = str(_CSV_COLUMNS[1:]).strip("[]").replace(" ", "").replace("'", "")
 #_CSV_COLUMNS = ["x{}".format(i) for i in range(1,15+1)]
 #_CSV_COLUMNS = ['x1', 'x3', 'x5', 'x7', 'x9', 'x10', 'x11', 'x12', 'x13', 'x14', 'x15']
 #_CSV_COLUMN_DEFAULTS = [[0], [0], [0], [''], [''], [''],
 #                        [0], [0], [0], [''], ['']]
 
-_CSV_COLUMN_DEFAULTS = [[0]] + [[0.]]*100
+_CSV_COLUMN_DEFAULTS = [[0]] + [[0.]]*128
+_FMT = "%i" + 128*",%f"
 
-_NUM_EXAMPLES = {
-    'train': 40000,
-    'validation': 5324,
-}
+_NUM_EXAMPLES = {'train': 4000}
 
-_NCLASSES = 5
+_NCLASSES = 10
+_DATA_DIR = "~/tmp/data"
+_MODEL_DIR = "~/tmp/model"
+_OFFSET = 30000
 
 LOSS_PREFIX = {'wide': 'linear/', 'deep': 'dnn/'}
 
@@ -68,14 +72,92 @@ class TClassifier:
         self._max_p_unlabeled = max_percentage_unlabeled
         self._step = 0
 
+        # Parameters for indoctrine training
+        self._max_steps = 10
+        self._min_frac = 0.1
+
+
     def step(self):
-        pass
+        # Get class predictions and their probabilities
+        print("Call to main.")
+        print("* flabel:\t\t", self._flabel % self._step)
+        print("* funlabel:\t\t", self._funlabel % self._step)
+        classprobs, flabel, funlabel = main(self._argv,
+                                            self._flabel % self._step,
+                                            self._funlabel % self._step)
+
+        print("Done.")
+        self._step += 1
+
+        # Get labeled and unlabeled data
+        print("Reading labeled and unlabeled data from")
+        print("* flabel:\t\t", flabel)
+        print("* funlabel:\t\t", funlabel)
+        labeled_data = np.genfromtxt(flabel, delimiter=",")
+        unlabeled_data = np.genfromtxt(funlabel, delimiter=",")
+
+        # Get indices where probability for predicted class is > thres
+        idx_to_label = np.where(classprobs[:,1] > self._thres)[0]
+        np.savetxt("cp.%i" % self._step, classprobs)
+        print("Set sizes:")
+        print("* Labeled:\t\t", labeled_data.shape[0])
+        print("* Unlabeled:\t\t", unlabeled_data.shape[0])
+        print("* Indices to label:\t", idx_to_label.size)
+
+        # Get fraction of data that's freshly labeled
+        frac_labeled = 1.0*idx_to_label.size/unlabeled_data.shape[0]
+
+        # Predict those labels (if they exist)
+        if idx_to_label.size > 0:
+            predict = unlabeled_data[idx_to_label, :] # Set datapoints
+            predict[:,0] = classprobs[idx_to_label, 0] # Set predicted classes
+
+            labeled_data = np.vstack((labeled_data, predict))
+            # Remove freshly predicted labels from unlabeled set
+            unlabeled_data = np.delete(unlabeled_data, idx_to_label, axis=0)
+
+        # Set global variable for number of training samples
+        _NUM_EXAMPLES = {'train': labeled_data.shape[0]}
+
+        # Save new datasets
+        print("Write new datasets to")
+        print("* flabel:\t", self._flabel % self._step)
+        print("* funlabel:\t", self._funlabel % self._step)
+        new_flabel = os.path.join(_DATA_DIR, self._flabel % self._step)
+        new_funlabel = os.path.join(_DATA_DIR, self._funlabel % self._step)
+        np.savetxt(new_flabel, labeled_data, fmt=_FMT)
+        np.savetxt(new_funlabel, unlabeled_data, fmt=_FMT)
+        print("Done.")
+
+        return frac_labeled
+
 
     def train(self):
-        pass
+        for i in range(self._max_steps):
+            frac_labeled = self.step()
+            print("Successfully finished step %i." % self._step)
+            print("Labeled %f percent of unlabeled data." % (100*frac_labeled))
+            if frac_labeled < self._min_frac:
+                print("This is below the threshold, stopping..")
+                return
+            if frac_labeled > 0.99:
+                print("This is more than 99%, stopping..")
+                return
+        print("Reached maximum amount of steps.")
+        return
 
     def predict(self):
-        pass
+        classprobs, _, _ = main(self._argv,
+                                self._flabel % self._step,
+                                self._ftest)
+        classes = classprobs[:,0]
+
+        with open("prediction.csv", "w+") as csvfile:
+            writer = csv.writer(csvfile)
+            writer.writerow(["Id","y"])
+            for i, predicted_class in enumerate(classes):
+                writer.writerow([_OFFSET + i, predicted_class])
+
 
 
 def build_model_columns():
@@ -161,13 +243,13 @@ def input_fn(data_file, num_epochs, shuffle, batch_size, has_labels=True):
   return dataset
 
 
-def main(argv, train_file, validate_file, predict_file):
+def main(argv, trainfile_name, predictfile_name):
   parser = WideDeepArgParser()
   flags = parser.parse_args(args=argv[1:])
 
   hidden_units = [int(u) for u in flags.hidden_units.strip("[]").split(",")]
 
-  print("STATUS --" * 10)
+  print("--"*10 + " STATUS " + "--"*10)
   print(hidden_units)
   print(flags.model_dir)
   print(flags.model_type)
@@ -181,17 +263,12 @@ def main(argv, train_file, validate_file, predict_file):
   model = build_estimator(flags.model_dir, flags.model_type, hidden_units)
 
   #train_file = os.path.join(flags.data_dir, 'train_minus.csv')
-  train_file = os.path.join(flags.data_dir, train_file)
-  test_file = os.path.join(flags.data_dir, validate_file)
-  predict_file = os.path.join(flags.data_dir, predict_file)
+  train_file = os.path.join(flags.data_dir, trainfile_name)
+  predict_file = os.path.join(flags.data_dir, predictfile_name)
 
   # Train and evaluate the model every `flags.epochs_between_evals` epochs.
   def train_input_fn():
-    return input_fn(
-        train_file, flags.epochs_between_evals, True, flags.batch_size)
-
-  def eval_input_fn():
-    return input_fn(test_file, 1, False, flags.batch_size)
+    return input_fn(train_file, flags.epochs_between_evals, True, flags.batch_size)
 
   def predict_input_fn():
     return input_fn(predict_file, 1, False, flags.batch_size, has_labels=False)
@@ -205,28 +282,14 @@ def main(argv, train_file, validate_file, predict_file):
   # Train and evaluate the model every `flags.epochs_between_evals` epochs.
   for n in range(flags.train_epochs // flags.epochs_between_evals):
     model.train(input_fn=train_input_fn, hooks=train_hooks)
-    """
-    results = model.evaluate(input_fn=eval_input_fn)
-
-    # Display evaluation metrics
-    print('Results at epoch', (n + 1) * flags.epochs_between_evals)
-    print('-' * 60)
-
-    for key in sorted(results):
-      print('%s: %s' % (key, results[key]))
-
-    if model_helpers.past_stop_threshold(
-        flags.stop_threshold, results['accuracy']):
-      break
-    """
 
   prediction = list(model.predict(input_fn=predict_input_fn))
 
   # Create array w/ [class, probability of this class]
   # TODO Improve: class prob might be low but still much higher than
   # all other probs, that case would also be okay
-  predicted_classes = np.array([[int(p["classes"][0]), max(p["probabilities"])] for p in prediction])
-  return prediction, predicted_classes, train_file, test_file
+  predicted_classprobs = np.array([[int(p["classes"][0]), max(p["probabilities"])] for p in prediction])
+  return predicted_classprobs, train_file, predict_file
 
 
 class WideDeepArgParser(argparse.ArgumentParser):
@@ -244,8 +307,8 @@ class WideDeepArgParser(argparse.ArgumentParser):
         help='List of ints with number of units per layer, default [100, 75, 50, 25]',
         metavar='<HU>')
     self.set_defaults(
-        data_dir='/tmp/data',
-        model_dir='/tmp/model',
+        data_dir=_DATA_DIR,
+        model_dir=_MODEL_DIR,
         train_epochs=40,
         epochs_between_evals=2,
         batch_size=40)
@@ -253,19 +316,14 @@ class WideDeepArgParser(argparse.ArgumentParser):
 
 if __name__ == '__main__':
   tf.logging.set_verbosity(tf.logging.INFO)
-  prediction, predicted_classes, train_file, test_file = main(argv=sys.argv)
 
-  # If we're more than 40% sure that the class is correct, label it
-  # otherwise don't
-  prediction_threshold = 0.4
-  # Get indices of which points we should label
-  idx = np.where(prediced_classes[:,1] > prediction_threshold)
+  trainfile_labeled = "labeled%i.csv"
+  trainfile_unlabeled = "unlabeled%i.csv"
+  testfile = "test.csv"
+  classification_threshold = 0.22
 
+  tc = TClassifier(sys.argv, trainfile_labeled, trainfile_unlabeled, testfile,
+                   classification_threshold)
 
-  import csv
-  with open("prediction.csv", "w") as csvfile:
-      offset = 45324
-      writer = csv.writer(csvfile)
-      writer.writerow(["Id","y"])
-      for i, predicted_class in enumerate(predicted_classes):
-          writer.writerow([offset + i, predicted_class])
+  tc.train()
+  tc.predict()
