@@ -14,19 +14,21 @@ import pandas
 # 69%: layer_sizes = [128,64, 32, 32, 10], starter_learning_rate = 0.06, decay_after = 30
 # 24%: layer_sizes = [128, 1, 10]
 
-layer_sizes =[128, 1000, 500, 250, 250, 250, 10]
+#layer_sizes =[128, 1000, 500, 250, 250, 250, 10]
+layer_sizes = [128, 5000,2000,3000,10]
+file_path = 'checkTisOutManySteps/'
 
 L = len(layer_sizes) - 1  # number of layers
 
 testlen = 100
 
 num_examples = 21000 + 9000 - testlen #unlabeled+labeled-test
-num_epochs = 150
+num_epochs = 300
 num_labeled = 9000 - testlen
 
-starter_learning_rate = 0.06#0.02
+starter_learning_rate = 0.02#0.02
 
-decay_after = 30#15  # epoch after which to begin learning rate decay
+decay_after = 50#15  # epoch after which to begin learning rate decay
 
 batch_size = 100
 num_iter = int((num_examples/batch_size)) * num_epochs  # number of loop iterations
@@ -227,7 +229,6 @@ sess = tf.Session()
 i_iter = 0
 
 #file_path = 'C:/Users/jonas/OneDrive/ETH/Machine Learning/iml-projects/task4/ladder-master/checkpoints/'
-file_path = 'checkpoints/'
 ckpt = tf.train.get_checkpoint_state(file_path)  # get latest checkpoint (if any)
 if ckpt and ckpt.model_checkpoint_path:
     # if checkpoint exists, restore the parameters and set epoch_n and i_iter
@@ -237,8 +238,8 @@ if ckpt and ckpt.model_checkpoint_path:
     print("Restored Epoch ", str(epoch_n))
 else:
     # no checkpoint exists. create checkpoints directory if it does not exist.
-    if not os.path.exists('checkpoints'):
-        os.makedirs('checkpoints')
+    if not os.path.exists(file_path[:-1]):
+        os.makedirs(file_path[:-1])
     init = tf.global_variables_initializer()
     sess.run(init)
 
@@ -258,7 +259,7 @@ for i in tqdm(range(int(i_iter), int(num_iter))):
             ratio = 1.0 * (num_epochs - (epoch_n+1))  # epoch_n + 1 because learning rate is set for next epoch
             ratio = max(0, ratio / (num_epochs - decay_after))
             sess.run(learning_rate.assign(starter_learning_rate * ratio))
-        saver.save(sess, 'checkpoints/model.ckpt', epoch_n)
+        saver.save(sess, file_path+'model.ckpt', epoch_n)
         # print "Epoch ", epoch_n, ", Accuracy: ", sess.run(accuracy, feed_dict={inputs: mnist.test.images, outputs:mnist.test.labels, training: False}), "%"
         ##with open('train_log', 'ab') as train_log:
 
@@ -280,7 +281,6 @@ sess.close()
 
 #print(mnist.test.images)
 sess = tf.Session()
-file_path = 'checkpoints/'
 ckpt = tf.train.get_checkpoint_state(file_path)  # get latest checkpoint (if any)
 saver.restore(sess, ckpt.model_checkpoint_path)
 epoch_n = int(ckpt.model_checkpoint_path.split('-')[-1])
@@ -292,6 +292,7 @@ pred = sess.run(tf.argmax(y, 1),feed_dict={inputs: mnist.eval.images, training: 
 #%%
 idx = numpy.arange(len(pred)) + 30000
 pred_DF = pandas.DataFrame(data=pred, columns=['y'], index=idx)
-pred_DF.to_csv("pred"+str(layer_sizes)+".csv", index_label=["Id"])
+pred_DF.to_csv("pred"+str(layer_sizes).strip()+".csv", index_label=["Id"])
+print(pred)
 #%%
 sess.close()
